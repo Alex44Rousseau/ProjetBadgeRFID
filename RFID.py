@@ -3,22 +3,25 @@ from mfrc522 import SimpleMFRC522
 import datetime
 import time
 
+# Connexion à la base de données MySQL
 conn = mysql.connector.connect(
     host='localhost',
-    user='votre_utilisateur_mysql',
-    password='votre_mot_de_passe_mysql',
-    database='votre_base_de_donnees'
+    user='root',
+    password='apagnan',
+    database='RFID'
 )
 cursor = conn.cursor()
 
+# Création de la table pour stocker les entrées et sorties avec la durée entre l'entrée et la sortie
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS attendance (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        employee_id VARCHAR(255) NOT NULL,
-        entry_time DATETIME NOT NULL,
-        exit_time DATETIME,
-        duration_minutes INT
-    )
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    employee_id BIGINT NOT NULL,
+    entry_time DATETIME NOT NULL,
+    exit_time DATETIME,
+    duration_minutes INT,
+    FOREIGN KEY (employee_id) REFERENCES employee(employee_id)
+    );
 ''')
 conn.commit()
 
@@ -36,6 +39,7 @@ def log_entry_exit(employee_id):
         ORDER BY entry_time DESC
         LIMIT 1
     ''', (employee_id,))
+    
     last_entry = cursor.fetchone()
 
     if last_entry:
@@ -43,6 +47,7 @@ def log_entry_exit(employee_id):
         exit_time = current_time.strftime("%Y-%m-%d %H:%M:%S")
         duration_minutes = (current_time - last_entry_time).total_seconds() / 60.0
 
+        # Mise à jour de la sortie et de la durée pour la dernière entrée
         cursor.execute('''
             UPDATE attendance
             SET exit_time = %s, duration_minutes = %s
@@ -64,11 +69,14 @@ try:
         current_time = time.time()
         elapsed_time = current_time - last_read_time
 
+        # Délai entre les lectures pour éviter les lectures trop fréquentes
         if elapsed_time > 1:
             print("Approchez votre badge RFID...")
             employee_id, _ = reader.read()
+            print("Ne pas faire attention au message ci-dessus, tout marche \n :)")
             log_entry_exit(employee_id)
 
+            # Mettez à jour le temps de la dernière lecture
             last_read_time = time.time()
 
 except KeyboardInterrupt:
